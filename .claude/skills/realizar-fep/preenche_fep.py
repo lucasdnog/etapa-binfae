@@ -1,79 +1,94 @@
 import subprocess
 import json
-import os
+import sys
+import time
 from playwright.sync_api import sync_playwright
 
+
+def calcular_senha_turma(turma):
+    """Gera a senha padrão com base na turma do militar (ex: '1/24' -> 'Recruta124@')."""
+    if not turma or "/" not in turma:
+        return ""
+    partes = turma.split("/")
+    num = ''.join(filter(str.isdigit, partes[0]))
+    ano = ''.join(filter(str.isdigit, partes[1]))
+    return f"Recruta{num}{ano}@"
+
+
 def executar_fep_dados(militar_busca):
-    """Chama o seu script atual para extrair os dados e gerar o JSON."""
     cmd = ["python", "-I", "fep_dados.py", militar_busca]
-    print(f"Executando extração para: {militar_busca}...")
-    
     resultado = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
-    
+
     if resultado.returncode != 0:
-        print(f"Erro ao executar fep_dados.py:\n{resultado.stderr}")
+        print(f"Erro ao extrair dados: {resultado.stderr}")
         return None
 
     try:
         return json.loads(resultado.stdout)
     except json.JSONDecodeError:
-        print("Erro: A saída do fep_dados.py não gerou um JSON válido:", resultado.stdout)
+        print("Erro ao ler JSON gerado:", resultado.stdout)
         return None
 
+
 def main():
-    # 1. Pergunta qual militar você quer processar
-    militar_busca = input("Digite o Nome de Guerra ou SARAM do militar: ")
-    dados = executar_fep_dados(militar_busca)
-    
+    if len(sys.argv) > 1:
+        busca = sys.argv[1]
+    else:
+        busca = input("Digite o Nome de Guerra ou SARAM do militar: ")
+
+    dados = executar_fep_dados(busca)
+
     if not dados or not dados.get("ok"):
-        print("❌ Erro nos dados extraídos:", dados.get("erros", "Desconhecido"))
+        print("❌ Erro nos dados:", dados.get("erros", "Militar não encontrado."))
         return
 
-    # Exibe resumo do que foi encontrado pelo seu script
     m = dados["militar"]
     l = dados["lacunas"]
-    print(f"\n[SUCESSO] Militar: {m['grad']} {m['guerra']} (SARAM: {m['saram']})")
-    print(f"Período: {l['mes']}/{l['ano']} - Dias: {l['datas']}")
-    print(f"Anexos prontos em: {list(dados['anexos'].values())}\n")
+    anexos = list(dados["anexos"].values())
 
-    # 2. Abre o navegador automatizado com Playwright
+    # Descobre a senha automaticamente com base na turma do militar
+    senha_militar = calcular_senha_turma(m.get("turma", ""))
+
+    if not m.get("cpf") or len(m["cpf"]) != 11:
+        print(f"❌ Erro: O militar {m['guerra']} não possui um CPF válido cadastrado na planilha.")
+        return
+
+    if not senha_militar:
+        print(f"❌ Erro: Não foi possível calcular a senha para a turma '{m.get('turma')}' do militar {m['guerra']}.")
+        return
+
+    print(f"\n🚀 Militar: {m['grad']} {m['guerra']} | Turma: {m['turma']} | Senha gerada: {senha_militar}")
+    print(f"📅 Período: {l['mes']}/{l['ano']} ({l['qtd_dias']} dias)")
+
+    # Abre o navegador para realizar o login individual com o CPF e a senha da turma dele
     with sync_playwright() as p:
-        # Cria uma pasta local para salvar a sessão/cookies e evitar login repetido
-        user_data_dir = os.path.join(os.path.dirname(__file__), "perfil_browser_militar")
-        
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            headless=False # Deixa o navegador visível para você acompanhar
-        )
-        
+        browser = p.chromium.launch(headless=False)
         page = browser.new_page()
-        
-        # Substitua pela URL exata da página de preenchimento do FEP no Portal do Militar
-        url_portal = "https://sua-url-do-portal-do-militar-aqui.com.br"
-        page.goto(url_portal)
 
-        print("==================================================")
-        print("🔐 AVISO DE LOGIN:")
-        print("Se esta for a primeira execução, uma janela do navegador vai abrir.")
-        print("Faça o seu login normal com CPF e senha (ou gov.br) manualmente lá.")
-        print("Assim que estiver logado na tela de preenchimento, volte aqui e aperte ENTER.")
-        print("==================================================")
-        input("Pressione ENTER após estar logado para o script continuar...")
+        # Substitua pela URL real de login do Portal do Militar
+        page.goto("URL_DO_PORTAL_DO_MILITAR_LOGIN")
 
-        print("🤖 Preenchendo os campos automaticamente...")
-        
-        # EXEMPLOS DE AÇÕES DE PREENCHIMENTO (Você ajustará com os seletores reais da página):
-        # page.fill("#campo_saram", m["saram"])
-        # page.fill("#campo_dias", l["datas"])
-        
-        # Exemplo anexando os arquivos PDF gerados pelo fep_dados.py:
-        # arquivos = list(dados["anexos"].values())
-        # page.set_input_files("input[type='file']", arquivos)
+        print("🔑 Realizando login automático...")
 
-        print("✨ Preenchimento concluído! Revise na tela do navegador e clique em enviar.")
-        
-        input("Pressione ENTER aqui no terminal para fechar o navegador...")
+        # Ajuste os seletores CSS se os nomes dos campos no portal forem diferentes
+        page.fill("input[name*='cpf']", m["cpf"])
+        page.fill("input[name*='senha']", senha_militar)
+        page.click("button[type='submit']")
+
+        page.wait_for_load_state("networkidle")
+        time.sleep(2)
+
+        print("🤖 Navegando para o FEP e preenchendo...")
+
+        # Exemplo de preenchimento dos campos e anexos:
+        # page.fill("#campo_dias_etapa", l["datas"])
+        # page.set_input_files("input[type='file']", anexos)
+
+        print(f"✨ FEP de {m['guerra']} logado e pronto! Revise na tela e envie.")
+
+        input("Pressione ENTER aqui no terminal para fechar o navegador deste militar...")
         browser.close()
+
 
 if __name__ == "__main__":
     main()
