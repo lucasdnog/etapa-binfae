@@ -1,0 +1,10 @@
+{
+ "pasta_dados": "C:\\caminho\\da\\pasta\\com\\efetivo-e-etapas",
+ "legislacao": "Portaria nº 359/GC4, de 6 de abril de 2016",
+ "chefe_imediato": {
+  "posto": "1T - Primeiro-Tenente",
+  "om": "SIGLA-DA-OM",
+  "nome_guerra": "NOMEDEGUERRA",
+  "nome_completo": "NOME COMPLETO DO CHEFE"
+ }
+}
