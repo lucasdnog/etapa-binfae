@@ -66,6 +66,7 @@ def efetivo(pasta):
         if len(s) == 7:
             out.append({"saram": s, "nome": norm(r[col["NOME COMPLETO"]]), "guerra": norm(r[col["NOME DE GUERRA"]]),
                         "grad": r[col["GRAD"]].strip(), "turma": r[col["TURMA"]].strip(),
+                        "cpf": re.sub(r"\D", "", r[col["CPF"]]) if "CPF" in col else "",
                         "tem_cpf": len(re.sub(r"\D", "", r[col["CPF"]])) == 11 if "CPF" in col else False})
     return out
 
@@ -162,7 +163,7 @@ def main():
         for k, src in (("ficha_anual", fichas[0]), ("parte_etapa", etapas[0])) + ((("escala", boletim),) if boletim else ()):
             shutil.copy2(src, dest)
             anexos[k] = os.path.join(dest, os.path.basename(src))
-    print(json.dumps({"ok": not erros, "erros": erros, "militar": {k: m[k] for k in ("saram", "guerra", "nome", "grad", "turma")},
+    print(json.dumps({"ok": not erros, "erros": erros, "militar": {k: m[k] for k in ("saram", "guerra", "nome", "grad", "turma", "cpf")},
                       "lacunas": lac, "chefe_imediato": CONFIG.get("chefe_imediato", {}), "anexos": anexos, "meses_com_etapa": disponiveis, "boletim": bol_status},
                      ensure_ascii=False, indent=1))
 
