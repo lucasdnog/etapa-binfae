@@ -193,6 +193,7 @@ label.btn.primary{background:var(--accent);border-color:var(--accent);color:var(
     <button role="tab" data-tab="etapa" aria-selected="true">Etapa Eventual</button>
     <button role="tab" data-tab="escala" aria-selected="false">Leitura de Escala</button>
     <button role="tab" data-tab="ficha" aria-selected="false">Ficha Anual</button>
+    <button role="tab" data-tab="fep" aria-selected="false">FEP</button>
   </nav>
 
   <div class="grid" id="tabEtapa">
@@ -419,6 +420,69 @@ label.btn.primary{background:var(--accent);border-color:var(--accent);color:var(
           <button id="fExpOne">Baixar PDF único (todas as fichas)</button>
         </div>
         <p class="hint" style="margin:0">Cada arquivo do ZIP sai como <code>NOME COMPLETO - SARAM.pdf</code>, igual às pastas de fichas separadas.</p>
+      </section>
+    </aside>
+  </div>
+
+  <div class="grid" id="tabFep" hidden>
+    <main>
+      <div class="bar">
+        <h2>Painel FEP</h2>
+        <div class="acts">
+          <span id="fpStatus" style="padding:4px 10px;border-radius:999px;font-size:13px;background:#eee;color:#555">Ajudante: verificando…</span>
+          <button id="fpPing" class="ghost">Verificar</button>
+        </div>
+      </div>
+
+      <section class="panel">
+        <h2>Ação do mês</h2>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+          <label>Mês<br>
+            <select id="fpMes">
+              <option value="janeiro">Janeiro</option><option value="fevereiro">Fevereiro</option>
+              <option value="março">Março</option><option value="abril">Abril</option>
+              <option value="maio">Maio</option><option value="junho">Junho</option>
+              <option value="julho">Julho</option><option value="agosto">Agosto</option>
+              <option value="setembro">Setembro</option><option value="outubro">Outubro</option>
+              <option value="novembro">Novembro</option><option value="dezembro">Dezembro</option>
+            </select>
+          </label>
+          <label>Ano<br><input id="fpAno" value="2026" inputmode="numeric" style="width:7ch"></label>
+        </div>
+        <div class="exp">
+          <button class="primary" id="fpConferir">Conferência do mês</button>
+          <button id="fpAcesso">Atualizar aba ACESSO FEP</button>
+        </div>
+        <p class="hint" style="margin:0">A <b>Conferência</b> lê as Partes de Etapa e cruza com o boletim — não envia nada e não mostra CPF. <b>ACESSO FEP</b> reconstrói a aba da planilha com os militares do mês (precisa da planilha fechada).</p>
+      </section>
+
+      <section class="panel">
+        <h2>Preenchimento no Portal</h2>
+        <div class="exp">
+          <button id="fpEdge">1 · Abrir Edge para login</button>
+          <button class="primary" id="fpPreencher">2 · Preencher o mês</button>
+          <button id="fpRelatorio">Ver relatório</button>
+        </div>
+        <p class="hint" style="margin:0">O preenchimento abre numa <b>janela à parte</b>. O <b>login</b> e o clique em <b>Enviar</b> são sempre seus — o painel só preenche as lacunas, o chefe e os anexos, e <b>para antes de enviar</b>. O <b>relatório</b> mostra o resultado de cada militar (e o que deu errado), mesmo se a janela fechar.</p>
+      </section>
+
+      <div id="fpMsg" class="notice" hidden></div>
+      <div id="fpOut"></div>
+    </main>
+
+    <aside>
+      <section class="panel">
+        <h2>Ajudante local</h2>
+        <p class="hint" style="margin:0 0 8px">Os botões só funcionam com o ajudante rodando na sua máquina. Normalmente ele sobe junto com o Windows. Se aparecer <b>OFFLINE</b>, inicie-o na pasta do projeto <b>Executor de etapas</b>:</p>
+        <textarea class="mono" rows="2" readonly style="width:100%">python -I servidor_fep.py</textarea>
+        <p class="hint" id="fpInfo" style="margin:8px 0 0"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Senha — fórmula da planilha</h2>
+        <p class="hint" style="margin:0 0 6px">Cole na coluna <b>SENHA</b> da aba ACESSO FEP (ajuste <code>C3</code> para a linha). O cálculo roda na sua planilha.</p>
+        <textarea id="fpFormula" class="mono" rows="2" readonly style="width:100%">="Recruta"&amp;ESQUERDA(C3;1)&amp;DIREITA(C3;2)&amp;"@"</textarea>
+        <button id="fpCopiar" class="ghost" style="margin-top:6px">Copiar fórmula</button>
       </section>
     </aside>
   </div>
@@ -1402,11 +1466,78 @@ function fFillCfg(){document.querySelectorAll("[data-fc]").forEach(el=>{const v=
 function fFlash(msg,kind){const el=$("#fMsg");el.className="notice "+(kind||"");el.textContent=msg;el.hidden=false;clearTimeout(fFlash.t);fFlash.t=setTimeout(()=>el.hidden=true,9000)}
 
 /* tabs */
-function setTab(t){S.tab=t;$("#tabEtapa").hidden=t!=="etapa";$("#tabFicha").hidden=t!=="ficha";$("#tabEscala").hidden=t!=="escala";
+function setTab(t){S.tab=t;$("#tabEtapa").hidden=t!=="etapa";$("#tabFicha").hidden=t!=="ficha";$("#tabEscala").hidden=t!=="escala";$("#tabFep").hidden=t!=="fep";
   document.querySelectorAll(".tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===t)));
-  $("#appTitle").textContent={ficha:"Ficha Anual",escala:"Leitura de Escala"}[t]||"Gerador de Etapa Eventual";
-  store.set("etapa.tab",t);if(t==="ficha")fRenderAll();else if(t==="escala")eRender();else renderPreview()}
+  $("#appTitle").textContent={ficha:"Ficha Anual",escala:"Leitura de Escala",fep:"Painel FEP"}[t]||"Gerador de Etapa Eventual";
+  store.set("etapa.tab",t);if(t==="ficha")fRenderAll();else if(t==="escala")eRender();else if(t==="fep"){if(window.__fepPing)window.__fepPing();}else renderPreview()}
 document.querySelectorAll(".tabs [data-tab]").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+/* ---------- aba FEP: fala com o ajudante local (servidor_fep.py) ---------- */
+(function(){
+  const SRV="http://127.0.0.1:8777", q=s=>document.querySelector(s);
+  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const msg=(t,k)=>{const e=q("#fpMsg");if(!t){e.hidden=true;return;}e.className="notice "+(k||"");e.textContent=t;e.hidden=false;};
+  const call=(path,opt)=>fetch(SRV+path,opt).then(r=>r.json());
+  const dados=()=>({mes:q("#fpMes").value,ano:q("#fpAno").value.trim()});
+  const post=(path)=>call(path,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(dados())});
+  async function ping(){
+    const el=q("#fpStatus");el.textContent="Ajudante: verificando…";el.style.background="#eee";el.style.color="#555";
+    try{const s=await call("/status");
+      el.textContent="Ajudante: online · "+s.efetivo+" militares";el.style.background="#e7f6e7";el.style.color="#1a7a1a";
+      q("#fpInfo").textContent="Pasta de dados: "+s.pasta_dados;return true;
+    }catch(e){el.textContent="Ajudante: OFFLINE";el.style.background="#fde8e8";el.style.color="#b11";return false;}
+  }
+  async function guard(){if(await ping())return true;msg("O ajudante está offline. Inicie o servidor_fep.py (comando no painel à direita) e tente de novo.","bad");return false;}
+  function render(c){
+    if(!c.ok){q("#fpOut").innerHTML="";msg(c.erro||"Conferência falhou.","bad");return;}
+    msg(null);
+    const linha=m=>{const ok=!m.probs.length;return `<tr style="border-top:1px solid #e3e3e3">`+
+      `<td style="padding:3px 6px">${esc(m.guerra)}</td><td align="center">${esc(m.saram)}</td>`+
+      `<td align="center">${m.dias.length}</td><td align="center">${m.folhas}</td>`+
+      `<td align="center">${m.ficha?"ok":"NÃO"}</td><td align="center">${m.cpf?"ok":"NÃO"}</td>`+
+      `<td style="padding:3px 6px">${ok?'<span style="color:#1a7a1a">ok</span>':'<span style="color:#b11">'+esc(m.probs.join("; "))+"</span>"}</td></tr>`;};
+    let h=`<section class="panel"><h2>Conferência — ${esc(c.mes)} ${esc(c.ano)}</h2>`+
+      `<div style="overflow:auto"><table class="mono" style="width:100%;border-collapse:collapse;font-size:13px">`+
+      `<tr style="text-align:center"><th align="left" style="padding:3px 6px">Nome de guerra</th><th>SARAM</th><th>Dias</th><th>Fl</th><th>Ficha</th><th>CPF</th><th align="left" style="padding:3px 6px">Problemas</th></tr>`+
+      c.militares.map(linha).join("")+`</table></div>`;
+    if(c.divergencias&&c.divergencias.length){h+=`<h3 style="margin:12px 0 4px">Divergências etapa × boletim</h3><ul style="margin:0">`+
+      c.divergencias.map(d=>`<li>${String(d.dia).padStart(2,"0")} — ${esc(d.tipo)}: ${esc((d.detalhe||[]).join(" | "))}</li>`).join("")+`</ul>`;}
+    if(c.no_boletim_sem_etapa&&c.no_boletim_sem_etapa.length) h+=`<p class="hint">No boletim sem etapa: ${c.no_boletim_sem_etapa.map(esc).join(", ")}</p>`;
+    const pend=c.militares.filter(m=>m.probs.length).length;
+    h+=`<p style="margin:10px 0 0"><b>Resumo:</b> ${c.militares.length-pend}/${c.militares.length} prontos · ${pend} com pendência · ${(c.divergencias||[]).length} dia(s) divergentes com o boletim.</p></section>`;
+    q("#fpOut").innerHTML=h;
+  }
+  q("#fpPing").onclick=ping;
+  q("#fpCopiar").onclick=async()=>{const t=q("#fpFormula");try{await navigator.clipboard.writeText(t.value);}catch(_){t.focus();t.select();try{document.execCommand("copy");}catch(e){}}msg("Fórmula copiada.","");};
+  q("#fpConferir").onclick=async()=>{if(!await guard())return;const d=dados();msg("Conferindo "+d.mes+"… (lê os PDFs, pode levar alguns segundos)");
+    try{render(await call("/conferir?mes="+encodeURIComponent(d.mes)+"&ano="+encodeURIComponent(d.ano)));}catch(e){msg("Erro: "+e.message,"bad");}};
+  q("#fpAcesso").onclick=async()=>{if(!await guard())return;msg("Atualizando a aba ACESSO FEP…");
+    try{const r=await post("/acesso");msg(r.texto||(r.ok?"Pronto.":"Falhou."),r.ok?"":"bad");}catch(e){msg("Erro: "+e.message,"bad");}};
+  q("#fpEdge").onclick=async()=>{if(!await guard())return;
+    try{const r=await post("/abrir-edge");msg(r.msg||r.erro,r.ok?"":"bad");}catch(e){msg("Erro: "+e.message,"bad");}};
+  const COR={ok:"#1a7a1a",aviso:"#b8860b",pausado:"#b11",pulado:"#b11",conta_errada:"#b11",pendente:"#777"};
+  const ROT={ok:"OK — preenchido, aguarda seu envio",aviso:"AVISO — confira na janela",pausado:"pausado — login não feito",pulado:"pulado — pendência nos dados",conta_errada:"conta errada no login",pendente:"nada pronto"};
+  function renderRel(r){
+    if(!r.ok){msg(r.erro||"Falha ao ler o relatório.","bad");return;}
+    if(r.vazio){q("#fpOut").innerHTML='<section class="panel"><p class="hint" style="margin:0">Ainda não há relatório — rode um preenchimento primeiro.</p></section>';return;}
+    const its=r.itens||[],falhas=its.filter(i=>i.status!=="ok").length;
+    const linha=it=>`<tr style="border-top:1px solid #e3e3e3"><td style="padding:3px 6px">${esc(it.grad)} ${esc(it.guerra)}</td><td align="center">${esc(it.saram)}</td><td align="center">${esc(it.dias)}</td>`+
+      `<td style="padding:3px 6px;color:${COR[it.status]||"#555"}">${esc(ROT[it.status]||it.status)}${(it.detalhe&&it.status!=="ok")?' <span style="color:#777">· '+esc(it.detalhe)+"</span>":""}</td></tr>`;
+    q("#fpOut").innerHTML=`<section class="panel"><h2>Relatório do preenchimento — ${esc(r.mes)} ${esc(r.ano)}</h2>`+
+      `<p class="hint" style="margin:0 0 6px">Início ${esc(r.inicio||"—")}${r.fim?" · Fim "+esc(r.fim):' · <b style="color:#b8860b">em andamento</b>'}</p>`+
+      `<div style="overflow:auto"><table class="mono" style="width:100%;border-collapse:collapse;font-size:13px">`+
+      `<tr><th align="left" style="padding:3px 6px">Militar</th><th>SARAM</th><th>Dias</th><th align="left" style="padding:3px 6px">Resultado</th></tr>`+
+      its.map(linha).join("")+`</table></div>`+
+      `<p style="margin:10px 0 0"><b>${its.length-falhas}/${its.length}</b> preenchidos · <b style="color:${falhas?"#b11":"#1a7a1a"}">${falhas}</b> com problema. Nada foi enviado — os envios são seus.</p></section>`;
+  }
+  async function verRel(){try{renderRel(await call("/relatorio"));}catch(e){msg("Erro: "+e.message,"bad");}}
+  q("#fpRelatorio").onclick=async()=>{if(!await guard())return;verRel();};
+  q("#fpPreencher").onclick=async()=>{if(!await guard())return;if(!q("#fpMes").value){msg("Escolha o mês.","bad");return;}
+    try{const r=await post("/preencher");msg(r.msg||r.erro,r.ok?"":"bad");
+      if(r.ok){clearInterval(window.__fepRelT);let n=0;window.__fepRelT=setInterval(async()=>{n++;try{const rr=await call("/relatorio");if(!rr.vazio)renderRel(rr);if((rr&&rr.fim)||n>60)clearInterval(window.__fepRelT);}catch(_){}} ,5000);}
+    }catch(e){msg("Erro: "+e.message,"bad");}};
+  window.__fepPing=ping;
+})();
 
 /* ficha events */
 document.querySelectorAll('input[name="fSrc"]').forEach(r=>r.onchange=()=>{F.src=r.value;$("#fEf").hidden=F.src!=="ef";$("#fMan").hidden=F.src!=="man"});
